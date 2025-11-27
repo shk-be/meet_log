@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Logger - AI 미팅로그 관리</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Meeting Logger</h1>
+            <p>AI 기반 미팅로그 관리 시스템</p>
+        </header>
+
+        <main>
+            <!-- 미팅로그 입력 섹션 -->
+            <section class="input-section collapsible">
+                <h2 class="section-header" data-section="input">
+                    <span>새 미팅로그 작성</span>
+                    <span class="toggle-icon">▼</span>
+                </h2>
+                <div class="section-content">
+                <form id="meetingForm">
+                    <div class="form-group">
+                        <label for="meetingTitle">미팅 제목</label>
+                        <input type="text" id="meetingTitle" required placeholder="예: 2024-01-15 프로젝트 킥오프 미팅">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="meetingDate">날짜</label>
+                        <input type="date" id="meetingDate" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="participants">참석자</label>
+                        <input type="text" id="participants" placeholder="예: 홍길동, 김철수, 이영희">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="meetingContent">미팅 내용</label>
+                        <textarea id="meetingContent" rows="10" required
+                            placeholder="미팅 내용을 자유롭게 작성하세요...&#10;&#10;예:&#10;- 프로젝트 목표 설정&#10;- 주요 마일스톤 논의&#10;- 담당자 배정&#10;- 다음 액션 아이템"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-text">AI로 정리하고 저장</span>
+                        <span class="loading" style="display: none;">처리 중...</span>
+                    </button>
+                </form>
+                </div>
+            </section>
+
+            <!-- 질문/검색 섹션 -->
+            <section class="search-section collapsible">
+                <h2 class="section-header" data-section="search">
+                    <span>과거 미팅로그 검색</span>
+                    <span class="toggle-icon">▼</span>
+                </h2>
+                <div class="section-content">
+                <div class="search-box">
+                    <textarea id="questionInput" rows="3"
+                        placeholder="질문을 입력하세요...&#10;&#10;예:&#10;- 프로젝트 일정은 어떻게 되나요?&#10;- 이전에 논의된 예산 관련 내용이 있나요?&#10;- 마케팅 전략에 대해 어떤 이야기가 있었나요?"></textarea>
+                    <button id="searchBtn" class="btn btn-secondary">
+                        <span class="btn-text">검색 및 답변 생성</span>
+                        <span class="loading" style="display: none;">검색 중...</span>
+                    </button>
+                </div>
+
+                <div id="searchResults" class="results-container" style="display: none;">
+                    <h3>답변</h3>
+                    <div id="answerContent" class="answer-content"></div>
+
+                    <h3>관련 미팅로그</h3>
+                    <div id="relatedMeetings" class="related-meetings"></div>
+                </div>
+                </div>
+            </section>
+
+            <!-- 저장된 미팅로그 목록 -->
+            <section class="meetings-list-section collapsible">
+                <h2 class="section-header" data-section="list">
+                    <span>저장된 미팅로그</span>
+                    <span class="toggle-icon">▼</span>
+                </h2>
+                <div class="section-content">
+                <button id="refreshBtn" class="btn btn-small">목록 새로고침</button>
+                <div id="meetingsList" class="meetings-list">
+                    <p class="empty-state">저장된 미팅로그가 없습니다.</p>
+                </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by OpenAI GPT</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
