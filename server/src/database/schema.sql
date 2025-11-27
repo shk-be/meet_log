@@ -15,6 +15,20 @@ CREATE TABLE IF NOT EXISTS users (
   last_login TIMESTAMP
 );
 
+-- Templates (must be created before meetings table)
+CREATE TABLE IF NOT EXISTS meeting_templates (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  meeting_type TEXT,
+  template_content TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT false,
+  created_by INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
 -- Meetings table
 CREATE TABLE IF NOT EXISTS meetings (
   id SERIAL PRIMARY KEY,
@@ -158,20 +172,6 @@ CREATE TABLE IF NOT EXISTS meeting_relationships (
   PRIMARY KEY (parent_meeting_id, child_meeting_id),
   FOREIGN KEY (parent_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (child_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
-);
-
--- Templates
-CREATE TABLE IF NOT EXISTS meeting_templates (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT,
-  meeting_type TEXT,
-  template_content TEXT NOT NULL,
-  is_default BOOLEAN DEFAULT false,
-  created_by INTEGER,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 -- AI insights
