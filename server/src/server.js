@@ -27,23 +27,36 @@ app.use('/api/tags', tagsRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/settings', settingsRouter);
 
-// Serve static files from React app (when built)
-const clientBuildPath = path.join(__dirname, '../../client/dist');
-app.use(express.static(clientBuildPath));
-
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured'
+    openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured',
+    database: 'connected'
   });
 });
 
-// Fallback to React app for client-side routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
-});
+// Serve static files from React app (when built) - only in production with client build
+const clientBuildPath = path.join(__dirname, '../../client/dist');
+const fs = require('fs');
+
+if (fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+
+  // Fallback to React app for client-side routing
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+} else {
+  // API only mode (for separate backend deployment)
+  app.get('*', (req, res) => {
+    res.status(404).json({
+      error: 'API endpoint not found',
+      message: 'This is an API-only server. Please use /api/* endpoints.'
+    });
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
