@@ -1,6 +1,6 @@
 # Meeting Logger - AI 기반 미팅 관리 시스템
 
-AI를 활용한 스마트 미팅 기록 및 관리 시스템입니다.
+PostgreSQL과 AI를 활용한 스마트 미팅 기록 및 관리 시스템입니다.
 
 ## 주요 기능
 
@@ -47,7 +47,7 @@ AI를 활용한 스마트 미팅 기록 및 관리 시스템입니다.
 
 ### Backend
 - Node.js + Express.js
-- SQLite (better-sqlite3)
+- PostgreSQL (pg)
 - OpenAI API (GPT-3.5-turbo)
 
 ### Frontend
@@ -72,15 +72,54 @@ cd meet_log
 cp .env.example .env
 ```
 
-`.env` 파일에 OpenAI API 키 입력:
+`.env` 파일 설정:
 ```
-OPENAI_API_KEY=your-api-key-here
-OPENAI_MODEL=gpt-3.5-turbo
+# Server Configuration
 PORT=3000
 NODE_ENV=development
+
+# OpenAI API Configuration
+OPENAI_API_KEY=your-api-key-here
+OPENAI_MODEL=gpt-3.5-turbo
+
+# PostgreSQL Configuration (Local Development)
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=meeting_logger
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+
+# PostgreSQL Configuration (Production - Render.com)
+# DATABASE_URL=postgresql://user:password@host:port/database
 ```
 
-### 2. 백엔드 실행
+### 2. PostgreSQL 설치 및 설정
+
+**macOS:**
+```bash
+# Homebrew로 설치
+brew install postgresql@14
+brew services start postgresql@14
+
+# 데이터베이스 생성
+createdb meeting_logger
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+
+# 데이터베이스 생성
+sudo -u postgres createdb meeting_logger
+```
+
+**Windows:**
+- PostgreSQL 공식 사이트에서 설치: https://www.postgresql.org/download/windows/
+- pgAdmin을 사용하여 `meeting_logger` 데이터베이스 생성
+
+### 3. 백엔드 실행
 
 ```bash
 cd server
@@ -90,7 +129,7 @@ npm run dev
 
 서버가 `http://localhost:3000`에서 실행됩니다.
 
-### 3. 프론트엔드 실행
+### 4. 프론트엔드 실행
 
 ```bash
 cd client

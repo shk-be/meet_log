@@ -1,23 +1,23 @@
 -- ============================================
--- Meeting Logger Database Schema - SQLite
+-- Meeting Logger Database Schema - PostgreSQL
 -- ============================================
 
 -- Users table (for future authentication)
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   password_hash TEXT,
   role TEXT DEFAULT 'user',
   avatar_url TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_login DATETIME
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_login TIMESTAMP
 );
 
 -- Meetings table
 CREATE TABLE IF NOT EXISTS meetings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   date DATE NOT NULL,
   start_time TIME,
@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS meetings (
   next_steps TEXT,
   status TEXT DEFAULT 'completed',
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   markdown_file_path TEXT,
   FOREIGN KEY (template_id) REFERENCES meeting_templates(id),
   FOREIGN KEY (created_by) REFERENCES users(id)
@@ -46,7 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_meetings_type ON meetings(meeting_type);
 
 -- Meeting versions (for edit history)
 CREATE TABLE IF NOT EXISTS meeting_versions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   meeting_id INTEGER NOT NULL,
   version_number INTEGER NOT NULL,
   title TEXT NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS meeting_versions (
   decisions TEXT,
   next_steps TEXT,
   changed_by INTEGER,
-  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   change_summary TEXT,
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (changed_by) REFERENCES users(id),
@@ -66,13 +66,13 @@ CREATE TABLE IF NOT EXISTS meeting_versions (
 
 -- Participants
 CREATE TABLE IF NOT EXISTS participants (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE,
   department TEXT,
   job_title TEXT,
-  is_active BOOLEAN DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Meeting participants (join table)
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS meeting_participants (
   meeting_id INTEGER NOT NULL,
   participant_id INTEGER NOT NULL,
   role TEXT,
-  attended BOOLEAN DEFAULT 1,
+  attended BOOLEAN DEFAULT true,
   PRIMARY KEY (meeting_id, participant_id),
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (participant_id) REFERENCES participants(id)
@@ -88,17 +88,17 @@ CREATE TABLE IF NOT EXISTS meeting_participants (
 
 -- Action items
 CREATE TABLE IF NOT EXISTS action_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   meeting_id INTEGER NOT NULL,
   description TEXT NOT NULL,
   assignee_id INTEGER,
   due_date DATE,
   priority TEXT DEFAULT 'medium',
   status TEXT DEFAULT 'pending',
-  completion_date DATETIME,
+  completion_date TIMESTAMP,
   notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (assignee_id) REFERENCES participants(id)
 );
@@ -109,13 +109,13 @@ CREATE INDEX IF NOT EXISTS idx_action_items_due_date ON action_items(due_date);
 
 -- Tags
 CREATE TABLE IF NOT EXISTS tags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   color TEXT,
   description TEXT,
-  is_ai_suggested BOOLEAN DEFAULT 0,
+  is_ai_suggested BOOLEAN DEFAULT false,
   usage_count INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Meeting tags (join table)
@@ -130,13 +130,13 @@ CREATE TABLE IF NOT EXISTS meeting_tags (
 
 -- Projects
 CREATE TABLE IF NOT EXISTS projects (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
   status TEXT DEFAULT 'active',
   start_date DATE,
   end_date DATE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Meeting projects (join table)
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS meeting_relationships (
   child_meeting_id INTEGER NOT NULL,
   relationship_type TEXT NOT NULL,
   notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (parent_meeting_id, child_meeting_id),
   FOREIGN KEY (parent_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (child_meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
@@ -162,55 +162,55 @@ CREATE TABLE IF NOT EXISTS meeting_relationships (
 
 -- Templates
 CREATE TABLE IF NOT EXISTS meeting_templates (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
   meeting_type TEXT,
   template_content TEXT NOT NULL,
-  is_default BOOLEAN DEFAULT 0,
+  is_default BOOLEAN DEFAULT false,
   created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 -- AI insights
 CREATE TABLE IF NOT EXISTS ai_insights (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   insight_type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   confidence REAL,
   related_meeting_ids TEXT,
   related_keywords TEXT,
-  generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  is_dismissed BOOLEAN DEFAULT 0,
-  dismissed_at DATETIME
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_dismissed BOOLEAN DEFAULT false,
+  dismissed_at TIMESTAMP
 );
 
 -- Saved searches
 CREATE TABLE IF NOT EXISTS saved_searches (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   user_id INTEGER,
   name TEXT NOT NULL,
   query TEXT NOT NULL,
   filters TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  last_used DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_used TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   user_id INTEGER,
   notification_type TEXT NOT NULL,
   title TEXT NOT NULL,
   message TEXT,
   related_meeting_id INTEGER,
   related_action_item_id INTEGER,
-  scheduled_for DATETIME,
-  sent_at DATETIME,
+  scheduled_for TIMESTAMP,
+  sent_at TIMESTAMP,
   status TEXT DEFAULT 'pending',
   channel TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id),
@@ -223,53 +223,53 @@ CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
 
 -- Calendar events
 CREATE TABLE IF NOT EXISTS calendar_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   meeting_id INTEGER UNIQUE,
   calendar_provider TEXT,
   external_event_id TEXT,
   sync_status TEXT DEFAULT 'synced',
-  last_synced DATETIME,
+  last_synced TIMESTAMP,
   error_message TEXT,
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
 -- Slack integrations
 CREATE TABLE IF NOT EXISTS slack_integrations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   meeting_id INTEGER,
   channel_id TEXT,
   message_ts TEXT,
-  posted_at DATETIME,
+  posted_at TIMESTAMP,
   FOREIGN KEY (meeting_id) REFERENCES meetings(id)
 );
 
 -- Recordings
 CREATE TABLE IF NOT EXISTS recordings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   meeting_id INTEGER NOT NULL,
   file_path TEXT NOT NULL,
   file_size INTEGER,
   duration INTEGER,
   format TEXT,
   source TEXT,
-  uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
 -- Transcriptions
 CREATE TABLE IF NOT EXISTS transcriptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   recording_id INTEGER NOT NULL,
   full_text TEXT NOT NULL,
   language TEXT DEFAULT 'ko',
   transcription_service TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE
 );
 
 -- Transcription segments
 CREATE TABLE IF NOT EXISTS transcription_segments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   transcription_id INTEGER NOT NULL,
   speaker_id INTEGER,
   speaker_name TEXT,
@@ -283,24 +283,24 @@ CREATE TABLE IF NOT EXISTS transcription_segments (
 
 -- Exports
 CREATE TABLE IF NOT EXISTS exports (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   meeting_id INTEGER NOT NULL,
   format TEXT NOT NULL,
   file_path TEXT NOT NULL,
   generated_by INTEGER,
-  generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (generated_by) REFERENCES users(id)
 );
 
 -- Analytics events
 CREATE TABLE IF NOT EXISTS analytics_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   event_type TEXT NOT NULL,
   user_id INTEGER,
   related_meeting_id INTEGER,
   metadata TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (related_meeting_id) REFERENCES meetings(id)
 );
@@ -313,8 +313,8 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   user_id INTEGER PRIMARY KEY,
   timezone TEXT DEFAULT 'Asia/Seoul',
   language TEXT DEFAULT 'ko',
-  email_notifications BOOLEAN DEFAULT 1,
-  slack_notifications BOOLEAN DEFAULT 0,
+  email_notifications BOOLEAN DEFAULT true,
+  slack_notifications BOOLEAN DEFAULT false,
   digest_frequency TEXT DEFAULT 'weekly',
   default_meeting_duration INTEGER DEFAULT 60,
   theme TEXT DEFAULT 'light',
@@ -327,5 +327,5 @@ CREATE TABLE IF NOT EXISTS system_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   description TEXT,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

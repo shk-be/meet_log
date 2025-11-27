@@ -16,22 +16,21 @@ class MeetingService {
         date,
         participants: participants?.join(', '),
         content,
-        template: templateId ? this.getTemplateContent(templateId) : null
+        template: templateId ? await this.getTemplateContent(templateId) : null
       });
 
       // 섹션별로 파싱
       const sections = this.parseSummarizedContent(summarized);
 
       // 미팅 삽입
-      const insertMeeting = db.prepare(`
+      const result = await db.query(`
         INSERT INTO meetings (
           title, date, start_time, end_time, location, meeting_type,
           template_id, raw_content, summary, overview,
           discussion, decisions, next_steps
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      const result = insertMeeting.run(
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING id
+      `, [
         title,
         date,
         startTime,
@@ -45,9 +44,9 @@ class MeetingService {
         sections.discussion,
         sections.decisions,
         sections.nextSteps
-      );
+      ]);
 
-      const meetingId = result.lastInsertRowid;
+      const meetingId = result.rows[0].id;
 
       // 참석자 추가
       if (participants && participants.length > 0) {
@@ -61,13 +60,13 @@ class MeetingService {
       }
 
       // 태그 자동 제안
-      const existingTags = this.getAllTagNames();
+      const existingTags = await this.getAllTagNames();
       const suggestedTags = await aiService.suggestTags(content, existingTags);
       if (suggestedTags.length > 0) {
         await this.addTags(meetingId, suggestedTags);
       }
 
-      return this.getMeetingById(meetingId);
+      return await this.getMeetingById(meetingId);
     } catch (error) {
       console.error('Error creating meeting:', error);
       throw error;
@@ -102,36 +101,38 @@ class MeetingService {
   /**
    * 미팅 조회 (ID)
    */
-  getMeetingById(id) {
+  async getMeetingById(id) {
     const db = getDatabase();
 
-    const meeting = db.prepare(`
-      SELECT * FROM meetings WHERE id = ?
-    `).get(id);
+    const result = await db.query('SELECT * FROM meetings WHERE id = $1', [id]);
+    const meeting = result.rows[0];
 
     if (!meeting) return null;
 
     // 참석자 조회
-    meeting.participants = db.prepare(`
+    const participantsResult = await db.query(`
       SELECT p.* FROM participants p
       JOIN meeting_participants mp ON p.id = mp.participant_id
-      WHERE mp.meeting_id = ?
-    `).all(id);
+      WHERE mp.meeting_id = $1
+    `, [id]);
+    meeting.participants = participantsResult.rows;
 
     // 액션 아이템 조회
-    meeting.actionItems = db.prepare(`
+    const actionItemsResult = await db.query(`
       SELECT ai.*, p.name as assignee_name
       FROM action_items ai
       LEFT JOIN participants p ON ai.assignee_id = p.id
-      WHERE ai.meeting_id = ?
-    `).all(id);
+      WHERE ai.meeting_id = $1
+    `, [id]);
+    meeting.actionItems = actionItemsResult.rows;
 
     // 태그 조회
-    meeting.tags = db.prepare(`
+    const tagsResult = await db.query(`
       SELECT t.*, mt.confidence FROM tags t
       JOIN meeting_tags mt ON t.id = mt.tag_id
-      WHERE mt.meeting_id = ?
-    `).all(id);
+      WHERE mt.meeting_id = $1
+    `, [id]);
+    meeting.tags = tagsResult.rows;
 
     return meeting;
   }
@@ -139,85 +140,129 @@ class MeetingService {
   /**
    * 미팅 목록 조회 (필터링, 페이지네이션)
    */
-  getMeetings(filters = {}) {
+  async getMeetings(filters = {}) {
     const db = getDatabase();
     const { page = 1, limit = 20, search, startDate, endDate, participantId, tagId, projectId, status } = filters;
 
     let query = 'SELECT * FROM meetings WHERE 1=1';
     const params = [];
+    let paramIndex = 1;
 
     if (search) {
-      query += ' AND (title LIKE ? OR raw_content LIKE ? OR summary LIKE ?)';
+      query += ` AND (title LIKE $${paramIndex} OR raw_content LIKE $${paramIndex + 1} OR summary LIKE $${paramIndex + 2})`;
       const searchPattern = `%${search}%`;
       params.push(searchPattern, searchPattern, searchPattern);
+      paramIndex += 3;
     }
 
     if (startDate) {
-      query += ' AND date >= ?';
+      query += ` AND date >= $${paramIndex}`;
       params.push(startDate);
+      paramIndex++;
     }
 
     if (endDate) {
-      query += ' AND date <= ?';
+      query += ` AND date <= $${paramIndex}`;
       params.push(endDate);
+      paramIndex++;
     }
 
     if (status) {
-      query += ' AND status = ?';
+      query += ` AND status = $${paramIndex}`;
       params.push(status);
+      paramIndex++;
     }
 
     if (participantId) {
-      query += ' AND id IN (SELECT meeting_id FROM meeting_participants WHERE participant_id = ?)';
+      query += ` AND id IN (SELECT meeting_id FROM meeting_participants WHERE participant_id = $${paramIndex})`;
       params.push(participantId);
+      paramIndex++;
     }
 
     if (tagId) {
-      query += ' AND id IN (SELECT meeting_id FROM meeting_tags WHERE tag_id = ?)';
+      query += ` AND id IN (SELECT meeting_id FROM meeting_tags WHERE tag_id = $${paramIndex})`;
       params.push(tagId);
+      paramIndex++;
     }
 
     if (projectId) {
-      query += ' AND id IN (SELECT meeting_id FROM meeting_projects WHERE project_id = ?)';
+      query += ` AND id IN (SELECT meeting_id FROM meeting_projects WHERE project_id = $${paramIndex})`;
       params.push(projectId);
+      paramIndex++;
     }
 
     query += ' ORDER BY date DESC, created_at DESC';
-    query += ' LIMIT ? OFFSET ?';
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, (page - 1) * limit);
 
-    const meetings = db.prepare(query).all(...params);
+    const result = await db.query(query, params);
+    const meetings = result.rows;
 
     // 각 미팅에 참석자 수, 액션 아이템 수 추가
-    meetings.forEach(meeting => {
-      meeting.participantCount = db.prepare(
-        'SELECT COUNT(*) as count FROM meeting_participants WHERE meeting_id = ?'
-      ).get(meeting.id).count;
+    for (const meeting of meetings) {
+      const participantCountResult = await db.query(
+        'SELECT COUNT(*) as count FROM meeting_participants WHERE meeting_id = $1',
+        [meeting.id]
+      );
+      meeting.participantCount = parseInt(participantCountResult.rows[0].count);
 
-      meeting.actionItemCount = db.prepare(
-        'SELECT COUNT(*) as count FROM action_items WHERE meeting_id = ?'
-      ).get(meeting.id).count;
+      const actionItemCountResult = await db.query(
+        'SELECT COUNT(*) as count FROM action_items WHERE meeting_id = $1',
+        [meeting.id]
+      );
+      meeting.actionItemCount = parseInt(actionItemCountResult.rows[0].count);
 
-      meeting.tagCount = db.prepare(
-        'SELECT COUNT(*) as count FROM meeting_tags WHERE meeting_id = ?'
-      ).get(meeting.id).count;
-    });
+      const tagCountResult = await db.query(
+        'SELECT COUNT(*) as count FROM meeting_tags WHERE meeting_id = $1',
+        [meeting.id]
+      );
+      meeting.tagCount = parseInt(tagCountResult.rows[0].count);
+    }
 
     // 전체 개수
     let countQuery = 'SELECT COUNT(*) as total FROM meetings WHERE 1=1';
-    const countParams = params.slice(0, -2); // LIMIT과 OFFSET 제외
+    const countParams = [];
+    let countParamIndex = 1;
 
     if (search) {
-      countQuery += ' AND (title LIKE ? OR raw_content LIKE ? OR summary LIKE ?)';
+      countQuery += ` AND (title LIKE $${countParamIndex} OR raw_content LIKE $${countParamIndex + 1} OR summary LIKE $${countParamIndex + 2})`;
+      const searchPattern = `%${search}%`;
+      countParams.push(searchPattern, searchPattern, searchPattern);
+      countParamIndex += 3;
     }
-    if (startDate) countQuery += ' AND date >= ?';
-    if (endDate) countQuery += ' AND date <= ?';
-    if (status) countQuery += ' AND status = ?';
-    if (participantId) countQuery += ' AND id IN (SELECT meeting_id FROM meeting_participants WHERE participant_id = ?)';
-    if (tagId) countQuery += ' AND id IN (SELECT meeting_id FROM meeting_tags WHERE tag_id = ?)';
-    if (projectId) countQuery += ' AND id IN (SELECT meeting_id FROM meeting_projects WHERE project_id = ?)';
+    if (startDate) {
+      countQuery += ` AND date >= $${countParamIndex}`;
+      countParams.push(startDate);
+      countParamIndex++;
+    }
+    if (endDate) {
+      countQuery += ` AND date <= $${countParamIndex}`;
+      countParams.push(endDate);
+      countParamIndex++;
+    }
+    if (status) {
+      countQuery += ` AND status = $${countParamIndex}`;
+      countParams.push(status);
+      countParamIndex++;
+    }
+    if (participantId) {
+      countQuery += ` AND id IN (SELECT meeting_id FROM meeting_participants WHERE participant_id = $${countParamIndex})`;
+      countParams.push(participantId);
+      countParamIndex++;
+    }
+    if (tagId) {
+      countQuery += ` AND id IN (SELECT meeting_id FROM meeting_tags WHERE tag_id = $${countParamIndex})`;
+      countParams.push(tagId);
+      countParamIndex++;
+    }
+    if (projectId) {
+      countQuery += ` AND id IN (SELECT meeting_id FROM meeting_projects WHERE project_id = $${countParamIndex})`;
+      countParams.push(projectId);
+      countParamIndex++;
+    }
 
-    const total = db.prepare(countQuery).get(...countParams).total;
+    const totalResult = await db.query(countQuery, countParams);
+    const total = parseInt(totalResult.rows[0].total);
 
     return {
       meetings,
@@ -233,26 +278,28 @@ class MeetingService {
   /**
    * 미팅 수정 (버전 생성)
    */
-  updateMeeting(id, updates) {
+  async updateMeeting(id, updates) {
     const db = getDatabase();
 
     // 기존 미팅 조회
-    const existingMeeting = this.getMeetingById(id);
+    const existingMeeting = await this.getMeetingById(id);
     if (!existingMeeting) {
       throw new Error('Meeting not found');
     }
 
     // 버전 생성
-    const versionNumber = db.prepare(
-      'SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM meeting_versions WHERE meeting_id = ?'
-    ).get(id).next_version;
+    const versionResult = await db.query(
+      'SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM meeting_versions WHERE meeting_id = $1',
+      [id]
+    );
+    const versionNumber = versionResult.rows[0].next_version;
 
-    db.prepare(`
+    await db.query(`
       INSERT INTO meeting_versions (
         meeting_id, version_number, title, raw_content, summary,
         overview, discussion, decisions, next_steps, change_summary
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
       id,
       versionNumber,
       existingMeeting.title,
@@ -263,42 +310,46 @@ class MeetingService {
       existingMeeting.decisions,
       existingMeeting.next_steps,
       updates.changeSummary || 'Updated'
-    );
+    ]);
 
     // 미팅 업데이트
     const updateFields = [];
     const updateParams = [];
+    let paramIndex = 1;
 
     if (updates.title) {
-      updateFields.push('title = ?');
+      updateFields.push(`title = $${paramIndex}`);
       updateParams.push(updates.title);
+      paramIndex++;
     }
     if (updates.date) {
-      updateFields.push('date = ?');
+      updateFields.push(`date = $${paramIndex}`);
       updateParams.push(updates.date);
+      paramIndex++;
     }
     if (updates.rawContent) {
-      updateFields.push('raw_content = ?');
+      updateFields.push(`raw_content = $${paramIndex}`);
       updateParams.push(updates.rawContent);
+      paramIndex++;
     }
 
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     updateParams.push(id);
 
-    db.prepare(`
-      UPDATE meetings SET ${updateFields.join(', ')} WHERE id = ?
-    `).run(...updateParams);
+    await db.query(`
+      UPDATE meetings SET ${updateFields.join(', ')} WHERE id = $${paramIndex}
+    `, updateParams);
 
-    return this.getMeetingById(id);
+    return await this.getMeetingById(id);
   }
 
   /**
    * 미팅 삭제
    */
-  deleteMeeting(id) {
+  async deleteMeeting(id) {
     const db = getDatabase();
-    const result = db.prepare('DELETE FROM meetings WHERE id = ?').run(id);
-    return result.changes > 0;
+    const result = await db.query('DELETE FROM meetings WHERE id = $1', [id]);
+    return result.rowCount > 0;
   }
 
   /**
@@ -308,17 +359,21 @@ class MeetingService {
     const db = getDatabase();
 
     for (const name of participantNames) {
-      let participant = db.prepare('SELECT id FROM participants WHERE name = ?').get(name);
+      const participantResult = await db.query('SELECT id FROM participants WHERE name = $1', [name]);
+      let participantId;
 
-      if (!participant) {
-        const result = db.prepare('INSERT INTO participants (name) VALUES (?)').run(name);
-        participant = { id: result.lastInsertRowid };
+      if (participantResult.rows.length === 0) {
+        const insertResult = await db.query('INSERT INTO participants (name) VALUES ($1) RETURNING id', [name]);
+        participantId = insertResult.rows[0].id;
+      } else {
+        participantId = participantResult.rows[0].id;
       }
 
-      db.prepare(`
-        INSERT OR IGNORE INTO meeting_participants (meeting_id, participant_id)
-        VALUES (?, ?)
-      `).run(meetingId, participant.id);
+      await db.query(`
+        INSERT INTO meeting_participants (meeting_id, participant_id)
+        VALUES ($1, $2)
+        ON CONFLICT (meeting_id, participant_id) DO NOTHING
+      `, [meetingId, participantId]);
     }
   }
 
@@ -327,30 +382,31 @@ class MeetingService {
    */
   async addActionItems(meetingId, actionItems) {
     const db = getDatabase();
-    const insertActionItem = db.prepare(`
-      INSERT INTO action_items (meeting_id, description, assignee_id, priority, due_date)
-      VALUES (?, ?, ?, ?, ?)
-    `);
 
     for (const item of actionItems) {
       let assigneeId = null;
 
       if (item.assignee) {
-        let participant = db.prepare('SELECT id FROM participants WHERE name = ?').get(item.assignee);
-        if (!participant) {
-          const result = db.prepare('INSERT INTO participants (name) VALUES (?)').run(item.assignee);
-          participant = { id: result.lastInsertRowid };
+        const participantResult = await db.query('SELECT id FROM participants WHERE name = $1', [item.assignee]);
+
+        if (participantResult.rows.length === 0) {
+          const insertResult = await db.query('INSERT INTO participants (name) VALUES ($1) RETURNING id', [item.assignee]);
+          assigneeId = insertResult.rows[0].id;
+        } else {
+          assigneeId = participantResult.rows[0].id;
         }
-        assigneeId = participant.id;
       }
 
-      insertActionItem.run(
+      await db.query(`
+        INSERT INTO action_items (meeting_id, description, assignee_id, priority, due_date)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [
         meetingId,
         item.description,
         assigneeId,
         item.priority || 'medium',
         item.dueDate || null
-      );
+      ]);
     }
   }
 
@@ -361,79 +417,87 @@ class MeetingService {
     const db = getDatabase();
 
     for (const tag of tags) {
-      let tagRecord = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.name);
+      const tagResult = await db.query('SELECT id FROM tags WHERE name = $1', [tag.name]);
+      let tagId;
 
-      if (!tagRecord) {
-        const result = db.prepare(`
+      if (tagResult.rows.length === 0) {
+        const insertResult = await db.query(`
           INSERT INTO tags (name, is_ai_suggested, usage_count)
-          VALUES (?, 1, 0)
-        `).run(tag.name);
-        tagRecord = { id: result.lastInsertRowid };
+          VALUES ($1, true, 0)
+          RETURNING id
+        `, [tag.name]);
+        tagId = insertResult.rows[0].id;
+      } else {
+        tagId = tagResult.rows[0].id;
       }
 
       // 태그 사용 횟수 증가
-      db.prepare('UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?').run(tagRecord.id);
+      await db.query('UPDATE tags SET usage_count = usage_count + 1 WHERE id = $1', [tagId]);
 
       // 미팅에 태그 연결
-      db.prepare(`
-        INSERT OR IGNORE INTO meeting_tags (meeting_id, tag_id, confidence)
-        VALUES (?, ?, ?)
-      `).run(meetingId, tagRecord.id, tag.confidence || 1.0);
+      await db.query(`
+        INSERT INTO meeting_tags (meeting_id, tag_id, confidence)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (meeting_id, tag_id) DO NOTHING
+      `, [meetingId, tagId, tag.confidence || 1.0]);
     }
   }
 
   /**
    * 모든 태그 이름 조회
    */
-  getAllTagNames() {
+  async getAllTagNames() {
     const db = getDatabase();
-    const tags = db.prepare('SELECT name FROM tags').all();
-    return tags.map(t => t.name);
+    const result = await db.query('SELECT name FROM tags');
+    return result.rows.map(t => t.name);
   }
 
   /**
    * 템플릿 내용 조회
    */
-  getTemplateContent(templateId) {
+  async getTemplateContent(templateId) {
     const db = getDatabase();
-    const template = db.prepare('SELECT template_content FROM meeting_templates WHERE id = ?').get(templateId);
-    return template ? template.template_content : null;
+    const result = await db.query('SELECT template_content FROM meeting_templates WHERE id = $1', [templateId]);
+    return result.rows.length > 0 ? result.rows[0].template_content : null;
   }
 
   /**
    * 버전 히스토리 조회
    */
-  getVersionHistory(meetingId) {
+  async getVersionHistory(meetingId) {
     const db = getDatabase();
-    return db.prepare(`
+    const result = await db.query(`
       SELECT * FROM meeting_versions
-      WHERE meeting_id = ?
+      WHERE meeting_id = $1
       ORDER BY version_number DESC
-    `).all(meetingId);
+    `, [meetingId]);
+    return result.rows;
   }
 
   /**
    * 버전 복원
    */
-  restoreVersion(meetingId, versionNumber) {
+  async restoreVersion(meetingId, versionNumber) {
     const db = getDatabase();
 
-    const version = db.prepare(`
-      SELECT * FROM meeting_versions WHERE meeting_id = ? AND version_number = ?
-    `).get(meetingId, versionNumber);
+    const result = await db.query(`
+      SELECT * FROM meeting_versions WHERE meeting_id = $1 AND version_number = $2
+    `, [meetingId, versionNumber]);
 
-    if (!version) {
+    if (result.rows.length === 0) {
       throw new Error('Version not found');
     }
 
+    const version = result.rows[0];
+
     // 현재 버전을 히스토리에 저장하고 복원
-    this.updateMeeting(meetingId, {
+    await this.updateMeeting(meetingId, {
       title: version.title,
       rawContent: version.raw_content,
       changeSummary: `Restored from version ${versionNumber}`
     });
 
-    return this.getMeetingById(meetingId);
+    return await this.getMeetingById(meetingId);
   }
 }
 

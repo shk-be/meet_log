@@ -1,53 +1,82 @@
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, '../../../data/database.sqlite');
-const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+// PostgreSQL 연결 풀 생성
+let pool = null;
 
-// 데이터베이스 연결 생성
-function createConnection() {
-  // data 디렉토리가 없으면 생성
-  const dataDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+function createPool() {
+  if (pool) {
+    return pool;
   }
 
-  const db = new Database(DB_PATH);
+  // 환경 변수 또는 기본값 사용
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
-  // WAL 모드 활성화 (성능 향상)
-  db.pragma('journal_mode = WAL');
+  if (connectionString) {
+    // Render.com 또는 기타 호스팅 서비스의 DATABASE_URL 사용
+    pool = new Pool({
+      connectionString,
+      ssl: process.env.NODE_ENV === 'production' ? {
+        rejectUnauthorized: false
+      } : false
+    });
+  } else {
+    // 로컬 개발 환경
+    pool = new Pool({
+      user: process.env.POSTGRES_USER || 'postgres',
+      host: process.env.POSTGRES_HOST || 'localhost',
+      database: process.env.POSTGRES_DB || 'meeting_logger',
+      password: process.env.POSTGRES_PASSWORD || 'postgres',
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
+    });
+  }
 
-  return db;
+  pool.on('error', (err) => {
+    console.error('Unexpected error on idle PostgreSQL client', err);
+  });
+
+  return pool;
 }
 
 // 데이터베이스 초기화 (스키마 적용)
-function initializeDatabase() {
-  const db = createConnection();
+async function initializeDatabase() {
+  const pool = createPool();
 
   try {
-    const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
-    db.exec(schema);
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+
+    // 스키마 실행
+    await pool.query(schema);
+
     console.log('Database initialized successfully');
-    return db;
+    return pool;
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;
   }
 }
 
-// 싱글톤 인스턴스
-let dbInstance = null;
-
+// 데이터베이스 연결 가져오기
 function getDatabase() {
-  if (!dbInstance) {
-    dbInstance = initializeDatabase();
+  if (!pool) {
+    pool = createPool();
   }
-  return dbInstance;
+  return pool;
+}
+
+// 연결 종료
+async function closeDatabase() {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
 }
 
 module.exports = {
   getDatabase,
   initializeDatabase,
-  createConnection
+  closeDatabase,
+  createPool
 };

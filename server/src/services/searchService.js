@@ -9,7 +9,7 @@ class SearchService {
     const db = getDatabase();
 
     // 모든 미팅 조회 (참석자 정보 포함)
-    const meetings = db.prepare(`
+    const result = await db.query(`
       SELECT
         m.id,
         m.title,
@@ -19,13 +19,14 @@ class SearchService {
         m.overview,
         m.discussion,
         m.decisions,
-        GROUP_CONCAT(DISTINCT p.name) as participants
+        STRING_AGG(DISTINCT p.name, ', ') as participants
       FROM meetings m
       LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id
       LEFT JOIN participants p ON mp.participant_id = p.id
       GROUP BY m.id
       ORDER BY m.date DESC
-    `).all();
+    `);
+    const meetings = result.rows;
 
     // AI로 답변 생성
     const answer = await aiService.searchAndAnswer(question, meetings);
@@ -55,7 +56,7 @@ class SearchService {
   /**
    * 고급 검색
    */
-  advancedSearch(query, filters = {}) {
+  async advancedSearch(query, filters = {}) {
     const db = getDatabase();
 
     // TODO: AND, OR, NOT 연산자 파싱
@@ -63,77 +64,86 @@ class SearchService {
 
     let sql = `SELECT
       m.*,
-      GROUP_CONCAT(DISTINCT p.name) as participants
+      STRING_AGG(DISTINCT p.name, ', ') as participants
       FROM meetings m
       LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id
       LEFT JOIN participants p ON mp.participant_id = p.id
       WHERE 1=1`;
     const params = [];
+    let paramIndex = 1;
 
     if (query && query.trim()) {
-      sql += ' AND (m.title LIKE ? OR m.raw_content LIKE ? OR m.summary LIKE ? OR m.overview LIKE ? OR m.discussion LIKE ? OR m.decisions LIKE ?)';
+      sql += ` AND (m.title LIKE $${paramIndex} OR m.raw_content LIKE $${paramIndex + 1} OR m.summary LIKE $${paramIndex + 2} OR m.overview LIKE $${paramIndex + 3} OR m.discussion LIKE $${paramIndex + 4} OR m.decisions LIKE $${paramIndex + 5})`;
       const pattern = `%${query}%`;
       params.push(pattern, pattern, pattern, pattern, pattern, pattern);
+      paramIndex += 6;
     }
 
     if (filters.dateFrom) {
-      sql += ' AND m.date >= ?';
+      sql += ` AND m.date >= $${paramIndex}`;
       params.push(filters.dateFrom);
+      paramIndex++;
     }
 
     if (filters.dateTo) {
-      sql += ' AND m.date <= ?';
+      sql += ` AND m.date <= $${paramIndex}`;
       params.push(filters.dateTo);
+      paramIndex++;
     }
 
     if (filters.participants && filters.participants.trim()) {
-      sql += ' AND p.name LIKE ?';
+      sql += ` AND p.name LIKE $${paramIndex}`;
       params.push(`%${filters.participants.trim()}%`);
+      paramIndex++;
     }
 
     if (filters.tagId) {
-      sql += ' AND m.id IN (SELECT meeting_id FROM meeting_tags WHERE tag_id = ?)';
+      sql += ` AND m.id IN (SELECT meeting_id FROM meeting_tags WHERE tag_id = $${paramIndex})`;
       params.push(filters.tagId);
+      paramIndex++;
     }
 
     sql += ' GROUP BY m.id ORDER BY m.date DESC LIMIT 50';
 
-    return db.prepare(sql).all(...params);
+    const result = await db.query(sql, params);
+    return result.rows;
   }
 
   /**
    * 저장된 검색 조회
    */
-  getSavedSearches() {
+  async getSavedSearches() {
     const db = getDatabase();
-    return db.prepare(`
+    const result = await db.query(`
       SELECT * FROM saved_searches
       ORDER BY last_used DESC
-    `).all();
+    `);
+    return result.rows;
   }
 
   /**
    * 검색 저장
    */
-  saveSearch(data) {
+  async saveSearch(data) {
     const db = getDatabase();
     const { name, query, filters } = data;
 
-    const result = db.prepare(`
+    const result = await db.query(`
       INSERT INTO saved_searches (name, query, filters)
-      VALUES (?, ?, ?)
-    `).run(name, query, JSON.stringify(filters));
+      VALUES ($1, $2, $3)
+      RETURNING id
+    `, [name, query, JSON.stringify(filters)]);
 
-    return { id: result.lastInsertRowid, name, query, filters };
+    return { id: result.rows[0].id, name, query, filters };
   }
 
   /**
    * 저장된 검색 삭제
    */
-  deleteSavedSearch(id) {
+  async deleteSavedSearch(id) {
     const db = getDatabase();
-    const result = db.prepare('DELETE FROM saved_searches WHERE id = ?').run(id);
-    return result.changes > 0;
+    const result = await db.query('DELETE FROM saved_searches WHERE id = $1', [id]);
+    return result.rowCount > 0;
   }
 }
 
