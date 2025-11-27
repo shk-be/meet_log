@@ -34,8 +34,8 @@ export default function HomePage() {
 
       setStats({
         totalMeetings: meetingsRes.data.pagination?.total || 0,
-        recentMeetings: meetingsRes.data.meetings || [],
-        actionItemSummary: actionItemsRes.data,
+        recentMeetings: Array.isArray(meetingsRes.data.meetings) ? meetingsRes.data.meetings : [],
+        actionItemSummary: actionItemsRes.data || {},
         loading: false,
       });
     } catch (error) {

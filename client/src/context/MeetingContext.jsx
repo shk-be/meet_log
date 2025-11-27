@@ -22,10 +22,12 @@ export const MeetingProvider = ({ children }) => {
     setError(null);
     try {
       const response = await meetingAPI.getAll(filters);
-      setMeetings(response.data.meetings || response.data);
+      const meetings = response.data.meetings || response.data;
+      setMeetings(Array.isArray(meetings) ? meetings : []);
       return response.data;
     } catch (err) {
       setError(err.message);
+      setMeetings([]);
       throw err;
     } finally {
       setLoading(false);
