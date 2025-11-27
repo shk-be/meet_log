@@ -291,6 +291,44 @@ ${content}
       return { overall: 'neutral', score: 0, summary: '분석 불가' };
     }
   }
+
+  /**
+   * 음성 파일을 텍스트로 전사 (Whisper API 사용)
+   */
+  async transcribeAudio(audioFilePath, options = {}) {
+    const fs = require('fs');
+
+    try {
+      const audioFile = fs.createReadStream(audioFilePath);
+
+      const response = await openai.audio.transcriptions.create({
+        file: audioFile,
+        model: 'whisper-1',
+        language: options.language || 'ko',
+        response_format: options.response_format || 'verbose_json',
+        timestamp_granularities: options.timestamp_granularities || ['segment']
+      });
+
+      // verbose_json 형식으로 반환되면 세그먼트 정보 포함
+      if (options.response_format === 'verbose_json') {
+        return {
+          text: response.text,
+          language: response.language,
+          duration: response.duration,
+          segments: response.segments || []
+        };
+      }
+
+      // 기본 텍스트만 반환
+      return {
+        text: response.text || response,
+        language: options.language || 'ko'
+      };
+    } catch (error) {
+      console.error('Audio transcription error:', error);
+      throw new Error('음성 전사 중 오류가 발생했습니다: ' + error.message);
+    }
+  }
 }
 
 module.exports = new AIService();

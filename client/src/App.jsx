@@ -12,6 +12,8 @@ import TagsPage from './pages/TagsPage'
 import SearchPage from './pages/SearchPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
+import RecordingsPage from './pages/RecordingsPage'
+import TemplatesPage from './pages/TemplatesPage'
 
 // Layout
 import MainLayout from './components/layout/MainLayout'
@@ -30,6 +32,8 @@ function App() {
             <Route path="/meetings/new" element={<CreateMeetingPage />} />
             <Route path="/meetings/:id" element={<MeetingDetailPage />} />
             <Route path="/action-items" element={<ActionItemsPage />} />
+            <Route path="/recordings" element={<RecordingsPage />} />
+            <Route path="/templates" element={<TemplatesPage />} />
             <Route path="/tags" element={<TagsPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />

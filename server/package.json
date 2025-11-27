@@ -26,8 +26,10 @@
     "express": "^4.18.2",
     "joi": "^17.11.0",
     "lodash": "^4.17.21",
+    "multer": "^2.0.2",
     "openai": "^4.20.1",
     "pg": "^8.16.3",
+    "socket.io": "^4.8.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

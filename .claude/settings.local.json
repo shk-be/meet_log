@@ -8,7 +8,11 @@
       "Bash(git push:*)",
       "Bash(npm install:*)",
       "Bash(vercel login)",
-      "Bash(vercel --prod:*)"
+      "Bash(vercel --prod:*)",
+      "Bash(node scripts/reset-db.js:*)",
+      "Bash(node ../scripts/reset-db.js:*)",
+      "Bash(node reset-db.js:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

@@ -11,6 +11,8 @@ const actionItemsRouter = require('./routes/actionItems');
 const tagsRouter = require('./routes/tags');
 const searchRouter = require('./routes/search');
 const settingsRouter = require('./routes/settings');
+const recordingsRouter = require('./routes/recordings');
+const templatesRouter = require('./routes/templates');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,12 +22,17 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // API Routes
 app.use('/api/meetings', meetingsRouter);
 app.use('/api/action-items', actionItemsRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/recordings', recordingsRouter);
+app.use('/api/templates', templatesRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -72,6 +79,10 @@ async function startServer() {
   try {
     await initializeDatabase();
     console.log('✓ Database initialized');
+
+    // Initialize default templates
+    const templateService = require('./services/templateService');
+    await templateService.initializeDefaultTemplates();
 
     app.listen(PORT, () => {
       console.log(`

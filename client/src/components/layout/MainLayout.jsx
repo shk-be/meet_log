@@ -16,6 +16,8 @@ import {
   Menu as MenuIcon,
   Home as HomeIcon,
   Event as EventIcon,
+  Mic as MicIcon,
+  Description as TemplateIcon,
   CheckCircle as CheckCircleIcon,
   LocalOffer as TagIcon,
   Search as SearchIcon,
@@ -29,6 +31,8 @@ const drawerWidth = 240;
 const menuItems = [
   { text: '홈', icon: <HomeIcon />, path: '/' },
   { text: '미팅 목록', icon: <EventIcon />, path: '/meetings' },
+  { text: '음성 녹음', icon: <MicIcon />, path: '/recordings' },
+  { text: '템플릿', icon: <TemplateIcon />, path: '/templates' },
   { text: '액션 아이템', icon: <CheckCircleIcon />, path: '/action-items' },
   { text: '태그 관리', icon: <TagIcon />, path: '/tags' },
   { text: '검색', icon: <SearchIcon />, path: '/search' },
