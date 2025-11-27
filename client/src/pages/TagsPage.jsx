@@ -31,7 +31,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const tagColors = [
   '#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5',

@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 function TabPanel({ children, value, index }) {
   return (
