@@ -25,7 +25,6 @@
     "react-markdown": "^9.0.1",
     "react-quill": "^2.0.0",
     "react-router-dom": "^6.21.1",
-    "react-wordcloud": "^1.2.7",
     "recharts": "^2.15.4"
   },
   "devDependencies": {
